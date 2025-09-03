@@ -4,19 +4,47 @@
 
 ## 前提条件
 
-1. 拥有 Sonatype OSSRH 账号（https://oss.sonatype.org/）
-2. 配置好 GPG 密钥
-3. 在 `~/.m2/settings.xml` 中配置 Sonatype 凭据
+1. 拥有 Maven Central Repository 账号
+   - 注册地址：https://central.sonatype.com/
+   - 创建并验证命名空间（namespace）
+   - 参考文档：https://central.sonatype.org/publish/generate-portal-token/
 
-## settings.xml 配置示例
+2. 安装 GPG 工具
+   - 下载地址：https://gnupg.org/download/index.html#sec-1-2
+   - 生成密钥并发布到公钥服务器（详见下文）
+
+3. 在 `~/.m2/settings.xml` 中配置 Maven Central 凭据
+
+## Maven Central Repository 配置
+
+### 创建和验证命名空间
+
+1. 访问 Maven Central Repository：https://central.sonatype.com/
+2. 注册并登录您的账号
+3. 创建一个新的命名空间（通常是您的域名反转，如 `io.github.username`）
+4. 验证您对该命名空间的所有权（通常需要验证域名或 GitHub 账号）
+5. 等待审核通过（通常需要几个小时到几天）
+
+### 生成访问令牌
+
+1. 登录 Maven Central Repository 门户：https://central.sonatype.com/
+2. 导航到用户设置页面
+3. 生成新的访问令牌（Access Token）
+4. 保存生成的用户名和密码（实际上是令牌）
+
+### settings.xml 配置示例
+
+在 `~/.m2/settings.xml` 中添加以下配置：
 
 ```xml
 <settings>
   <servers>
     <server>
       <id>central</id>
-      <username>您的Sonatype用户名</username>
-      <password>您的Sonatype密码</password>
+      <!-- 使用生成的令牌用户名 -->
+      <username>您的令牌用户名</username>
+      <!-- 使用生成的令牌密码 -->
+      <password>您的令牌密码</password>
     </server>
   </servers>
   
@@ -28,7 +56,7 @@
         <activeByDefault>true</activeByDefault>
       </activation>
       <properties>
-        <gpg.keyname>您的GPG密钥ID</gpg.keyname>
+        <gpg.keyname>您的GPG密钥ID（使用后八位）</gpg.keyname>
         <!-- 不推荐在配置文件中存储密码 -->
         <!-- <gpg.passphrase>您的GPG密钥密码</gpg.passphrase> -->
       </properties>
@@ -37,302 +65,386 @@
 </settings>
 ```
 
+### pom.xml 配置示例
+
+在项目的 `pom.xml` 文件中添加以下配置，以支持发布到 Maven 中央仓库：
+
+```xml
+<project>
+  <!-- 基本项目信息 -->
+  <groupId>io.github.yourusername</groupId>
+  <artifactId>your-project</artifactId>
+  <version>1.0.0</version>
+  <packaging>jar</packaging>
+  
+  <!-- 项目元数据（必需） -->
+  <name>项目名称</name>
+  <description>项目描述</description>
+  <url>https://github.com/yourusername/your-project</url>
+  
+  <!-- 许可证信息（必需） -->
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>http://www.opensource.org/licenses/mit-license.php</url>
+    </license>
+  </licenses>
+  
+  <!-- 开发者信息（必需） -->
+  <developers>
+    <developer>
+      <name>您的姓名</name>
+      <email>您的邮箱</email>
+      <organization>您的组织</organization>
+      <organizationUrl>https://github.com/yourusername</organizationUrl>
+    </developer>
+  </developers>
+  
+  <!-- SCM信息（必需） -->
+  <scm>
+    <connection>scm:git:git://github.com/yourusername/your-project.git</connection>
+    <developerConnection>scm:git:ssh://github.com:yourusername/your-project.git</developerConnection>
+    <url>https://github.com/yourusername/your-project/tree/main</url>
+  </scm>
+  
+  <!-- 构建配置 -->
+  <build>
+    <plugins>
+      <!-- 编译插件 -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.11.0</version>
+        <configuration>
+          <source>11</source>
+          <target>11</target>
+        </configuration>
+      </plugin>
+      
+      <!-- 源码插件（必需） -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-source-plugin</artifactId>
+        <version>3.3.0</version>
+        <executions>
+          <execution>
+            <id>attach-sources</id>
+            <goals>
+              <goal>jar-no-fork</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      
+      <!-- JavaDoc插件（必需） -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <version>3.5.0</version>
+        <executions>
+          <execution>
+            <id>attach-javadocs</id>
+            <goals>
+              <goal>jar</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+  
+  <!-- 发布配置（使用profile） -->
+  <profiles>
+    <profile>
+      <id>release</id>
+      <build>
+        <plugins>
+          <!-- GPG签名插件 -->
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <version>3.1.0</version>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <phase>verify</phase>
+                <goals>
+                  <goal>sign</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          
+          <!-- 中央仓库发布插件 -->
+          <plugin>
+            <groupId>org.sonatype.central</groupId>
+            <artifactId>central-publishing-maven-plugin</artifactId>
+            <version>0.8.0</version>
+            <extensions>true</extensions>
+            <configuration>
+              <publishingServerId>central</publishingServerId>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>
+```
+
+这个配置包含了发布到 Maven 中央仓库所需的所有必要元素：
+
+1. **基本项目信息**：groupId、artifactId 和 version
+2. **项目元数据**：名称、描述和 URL
+3. **许可证信息**：至少需要一个许可证
+4. **开发者信息**：至少需要一个开发者
+5. **SCM 信息**：源代码管理信息
+6. **构建插件**：
+   - maven-compiler-plugin：编译源代码
+   - maven-source-plugin：生成源码 JAR（必需）
+   - maven-javadoc-plugin：生成 JavaDoc JAR（必需）
+7. **发布配置**：
+   - maven-gpg-plugin：对构件进行 GPG 签名
+   - central-publishing-maven-plugin：发布到 Maven 中央仓库
+
 ## GPG 密钥配置
 
-1. 安装 GPG
-   - macOS: `brew install gnupg`
-   - Ubuntu: `sudo apt-get install gnupg`
-   - Windows: 下载并安装 Gpg4win (https://www.gpg4win.org/)
+GPG（GNU Privacy Guard）是一个加密软件，用于对 Maven 构件进行签名，这是发布到 Maven 中央仓库的必要条件。
 
-   **注意**: 确保安装后 `gpg` 命令可用。在某些系统中，可能需要将 GPG 的安装目录添加到系统 PATH 环境变量中。
+### 1. 安装 GPG
 
-2. 生成密钥
-   ```
-   gpg --gen-key
-   ```
+建议通过官方网站下载并安装 GPG：https://gnupg.org/download/index.html#sec-1-2
 
-3. 查看密钥
-   ```
-   gpg --list-keys
-   ```
+- **Windows**:
+  - 下载并安装 Gpg4win
 
-4. 查看密钥ID
-   ```
-   gpg --list-keys --keyid-format LONG
-   ```
-   
-   输出示例:
-   ```
-   pub   rsa4096/ABCDEF1234567890 2025-09-01 [SC] [有效至：2027-09-01]
-         1234567890ABCDEF1234567890ABCDEF12345678
-   uid                 [ultimate] 您的名字 <your.email@example.com>
-   sub   rsa4096/1234ABCD5678EFGH 2025-09-01 [E] [有效至：2027-09-01]
-   ```
-   
-   在这个例子中，`ABCDEF1234567890`就是您的密钥ID。
+- **macOS**:
+  - 下载并安装 GPG Suite
+  - 注意：如果使用 Homebrew 安装的 GPG 无法发布密钥到公钥服务器，建议通过官方网站下载安装可视化工具进行操作
 
-5. 发布密钥到公钥服务器
-   ```
-   gpg --keyserver keyserver.ubuntu.com --send-keys 您的密钥ID
-   ```
-   
-   如果遇到权限问题，可以尝试以下解决方案：
-   
-   a. 修复 .gnupg 目录的所有权和权限：
+- **Linux**:
+  - 下载并安装官方提供的二进制包
+  - 或使用包管理器：Ubuntu/Debian: `sudo apt-get install gnupg`，Fedora/RHEL: `sudo dnf install gnupg`
+
+**注意**: 安装后，确保 `gpg` 命令可用。在某些系统中，可能需要将 GPG 的安装目录添加到系统 PATH 环境变量中。
+
+### 2. 生成 GPG 密钥对
+
+```bash
+gpg --full-generate-key
+```
+
+推荐设置:
+- 密钥类型: RSA and RSA (默认)
+- 密钥长度: 4096 位
+- 有效期: 根据需要设置（建议至少 2 年）
+- 输入您的个人信息（姓名、电子邮件等）
+- 设置一个安全的密码
+
+### 3. 查看生成的密钥
+
+```bash
+gpg --list-keys
+```
+
+### 4. 查看密钥 ID
+
+```bash
+gpg --list-keys --keyid-format LONG
+```
+
+输出示例:
+```
+pub   rsa4096/ABCDEF1234567890 2025-09-01 [SC] [有效至：2027-09-01]
+      1234567890ABCDEF1234567890ABCDEF12345678
+uid                 [ultimate] 您的名字 <your.email@example.com>
+sub   rsa4096/1234ABCD5678EFGH 2025-09-01 [E] [有效至：2027-09-01]
+```
+
+在这个例子中，`ABCDEF1234567890` 就是您的密钥 ID。
+
+### 5. 发布密钥到公钥服务器
+
+Maven Central 要求您的 GPG 密钥必须发布到公共密钥服务器。
+
+```bash
+gpg --keyserver keyserver.ubuntu.com --send-keys 您的密钥ID
+```
+
+建议同时发布到多个服务器以确保可用性:
+
+```bash
+gpg --keyserver keys.openpgp.org --send-keys 您的密钥ID
+gpg --keyserver pgp.mit.edu --send-keys 您的密钥ID
+gpg --keyserver keyserver.ubuntu.com --send-keys 您的密钥ID
+```
+
+### 常见问题及解决方案
+
+1. **权限问题**:
    ```bash
-   # 确保 .gnupg 目录及其内容归属于当前用户
+   # 修复 .gnupg 目录的所有权和权限
    sudo chown -R $(whoami) ~/.gnupg
-   # 设置正确的权限
    chmod 700 ~/.gnupg
    chmod 600 ~/.gnupg/*
    ```
-   
-   b. 尝试其他公钥服务器：
-   ```
-   gpg --keyserver keys.openpgp.org --send-keys 您的密钥ID
-   # 或
-   gpg --keyserver pgp.mit.edu --send-keys 您的密钥ID
-   ```
-   
-   c. 如果仍然遇到问题，可以尝试使用 hkp 协议：
-   ```
+
+2. **连接问题**:
+   ```bash
+   # 使用 hkp 协议
    gpg --keyserver hkp://keyserver.ubuntu.com:80 --send-keys 您的密钥ID
    ```
-   
-   d. 检查防火墙设置，确保允许 GPG 进行网络连接
-   
-   e. 如果所有方法都失败，可以导出公钥并手动上传到 Sonatype OSSRH：
-   ```
+
+3. **防火墙问题**:
+   - 检查防火墙设置，确保允许 GPG 进行网络连接
+   - 如果在公司网络环境中，可能需要联系 IT 部门
+
+4. **手动上传**:
+   如果所有自动方法都失败，可以导出公钥并手动上传:
+   ```bash
    gpg --export --armor 您的密钥ID > public-key.asc
    ```
-   然后登录 Sonatype OSSRH 并在用户配置中上传此文件。
+   然后登录 Maven Central 并在用户配置中上传此文件。
+
+5. **验证密钥是否已发布**:
+   ```bash
+   gpg --keyserver keyserver.ubuntu.com --recv-keys 您的密钥ID
+   ```
 
 ## 发布流程
 
-### 准备发布
+### 1. 准备发布
 
-1. 确保版本号正确（在 pom.xml 中）
-2. 确保所有测试通过
-   ```
+在发布之前，请确保完成以下准备工作：
+
+1. **检查版本号**
+   - 在 `pom.xml` 中确认版本号是否正确
+   - 遵循语义化版本规范 (Semantic Versioning)：主版本.次版本.修订号
+   - 对于新功能，增加次版本号；对于 bug 修复，增加修订号；对于不兼容的 API 更改，增加主版本号
+
+2. **确保所有测试通过**
+   ```bash
    mvn clean test
    ```
 
-### 执行发布
+3. **检查项目文档**
+   - README.md 是否包含最新信息
+   - JavaDoc 是否完整且无错误
 
-项目现在有两个 profile：
-- `dev` - 默认激活，用于本地开发和测试，跳过 GPG 签名
-- `wYOw2G` - 包含 GPG 签名配置和发布配置，用于发布到 Maven 中央仓库
+4. **检查 pom.xml 配置**
+   - groupId、artifactId 和 version 是否正确
+   - 所有必要的元数据是否完整（名称、描述、URL、许可证、开发者信息等）
+   - SCM 信息是否正确
 
-#### 本地构建和测试
+### 2. 构建和本地测试
+
+在发布到 Maven 中央仓库之前，建议先在本地构建并测试：
 
 ```bash
 mvn clean install
 ```
 
-#### 发布到 Maven 中央仓库
+这将在本地 Maven 仓库中安装项目，您可以在其他项目中引用它进行测试。
+
+### 3. 执行发布
+
+项目配置了两个 Maven profile：
+
+- `dev` - 默认激活，用于本地开发和测试，跳过 GPG 签名
+- `release` - 包含 GPG 签名配置和发布配置，用于发布到 Maven 中央仓库
+
+发布到 Maven 中央仓库：
 
 ```bash
-mvn clean deploy -P wYOw2G
+mvn clean deploy -P release
 ```
 
-**注意**：pom.xml 中已经配置了您的 GPG 密钥 ID (6715FFDA5B7AE065)，如果您使用不同的密钥，请修改 pom.xml 中的 `<keyname>` 标签。
+如果需要提供 GPG 密码：
 
-### 常见问题
-
-1. **GPG 命令不可用**
-
-   错误信息：`Cannot run program "gpg": error=2, No such file or directory`
-   
-   解决方案：
-   - 确保已安装 GPG（参见上面的安装说明）
-   - 确保 GPG 命令在系统 PATH 中
-
-2. **找不到密钥**
-
-   错误信息：`gpg: no default secret key: No secret key`
-   
-   解决方案：
-   - 确保已生成 GPG 密钥，并使用 `gpg --list-secret-keys` 验证
-   - 检查 pom.xml 中的 `<keyname>` 标签是否与您的密钥 ID 匹配
-
-3. **缺少签名文件**
-
-   错误信息：`Missing signature for file: xxx.jar`
-   
-   解决方案：
-   - 确保使用了 `wYOw2G` profile
-   - 确保 GPG 密钥配置正确
-   - 尝试手动为构件生成签名：
-   
-   ```bash
-   cd target
-   gpg --armor --detach-sign -u 您的密钥ID reactive-response-builder-1.0.0.jar
-   gpg --armor --detach-sign -u 您的密钥ID reactive-response-builder-1.0.0-sources.jar
-   gpg --armor --detach-sign -u 您的密钥ID reactive-response-builder-1.0.0-javadoc.jar
-   cd ..
-   gpg --armor --detach-sign -u 您的密钥ID pom.xml
-   ```
-
-4. **"Inappropriate ioctl for device" 错误**
-
-   错误信息：`gpg: 签名时失败： Inappropriate ioctl for device` 或 `gpg: signing failed: Inappropriate ioctl for device`
-   
-   解决方案：
-   
-   a. 在 pom.xml 中添加 `--pinentry-mode loopback` 参数（已添加）：
-   ```xml
-   <gpgArguments>
-       <arg>--pinentry-mode</arg>
-       <arg>loopback</arg>
-   </gpgArguments>
-   ```
-   
-   b. 设置 GPG_TTY 环境变量：
-   ```bash
-   export GPG_TTY=$(tty)
-   ```
-   
-   c. 配置 GPG 使用 loopback 模式，编辑 ~/.gnupg/gpg.conf 文件：
-   ```bash
-   echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
-   ```
-   
-   d. 如果使用的是 macOS，可能需要安装并配置 pinentry-mac：
-   ```bash
-   brew install pinentry-mac
-   echo "pinentry-program /usr/local/bin/pinentry-mac" >> ~/.gnupg/gpg-agent.conf
-   gpgconf --kill gpg-agent
-   ```
-   
-   e. 在命令行中提供密码：
-   ```bash
-   mvn clean deploy -P wYOw2G -Dgpg.passphrase=您的密钥密码
-   ```
-
-5. **IntelliJ IDEA 内置 Maven 问题**
-
-   如果您使用的是 IntelliJ IDEA 内置的 Maven，可能会遇到 GPG 无法正常工作的问题，因为内置 Maven 可能无法正确访问 GPG 配置。
-   
-   解决方案：
-   
-   a. 在 IDEA 中配置外部 Maven：
-   - 下载 Maven 二进制包：从 https://maven.apache.org/download.cgi 下载最新版本
-   - 解压到您选择的目录，例如 `/Users/您的用户名/tools/apache-maven-3.9.6`
-   - 在 IDEA 中，转到 Preferences > Build, Execution, Deployment > Build Tools > Maven
-   - 将 Maven home path 设置为您解压的 Maven 路径
-   - 应用更改并重启 IDEA
-   
-   b. 直接在 pom.xml 中配置 GPG 密码（仅用于本地开发，不要提交到版本控制）：
-   ```xml
-   <profile>
-     <id>wYOw2G</id>
-     <build>
-       <plugins>
-         <plugin>
-           <groupId>org.apache.maven.plugins</groupId>
-           <artifactId>maven-gpg-plugin</artifactId>
-           <configuration>
-             <!-- 其他配置 -->
-             <passphrase>您的GPG密钥密码</passphrase>
-           </configuration>
-         </plugin>
-       </plugins>
-     </build>
-   </profile>
-   ```
-   
-   c. 使用命令行参数传递密码：
-   - 打开 IDEA 的 Maven 工具窗口
-   - 右键点击项目
-   - 选择 "Create 'xxx'" > "Run Maven Build"
-   - 在命令行参数中添加 `-P wYOw2G -Dgpg.passphrase=您的密钥密码`
-   - 点击运行
-   
-   d. 创建 Maven 配置文件：
-   - 在 `~/.m2/settings.xml` 中添加以下配置：
-   ```xml
-   <settings>
-     <!-- 其他配置 -->
-     <profiles>
-       <profile>
-         <id>gpg</id>
-         <properties>
-           <gpg.passphrase>您的GPG密钥密码</gpg.passphrase>
-         </properties>
-       </profile>
-     </profiles>
-     <activeProfiles>
-       <activeProfile>gpg</activeProfile>
-     </activeProfiles>
-   </settings>
-   ```
-
-6. **密码问题**
-
-   如果不想每次都输入密码，可以使用以下方法：
-   
-   a. 在 Maven 配置文件中存储密码（不推荐用于生产环境）：
-   ```xml
-   <!-- 在 ~/.m2/settings.xml 中 -->
-   <settings>
-     <profiles>
-       <profile>
-         <id>gpg</id>
-         <properties>
-           <gpg.passphrase>您的GPG密钥密码</gpg.passphrase>
-         </properties>
-       </profile>
-     </profiles>
-     <activeProfiles>
-       <activeProfile>gpg</activeProfile>
-     </activeProfiles>
-   </settings>
-   ```
-   
-   b. 使用 Maven 密码加密功能：
-   ```bash
-   mvn --encrypt-password 您的GPG密钥密码
-   ```
-   
-   然后将加密后的密码放入 settings.xml：
-   ```xml
-   <settings>
-     <profiles>
-       <profile>
-         <id>gpg</id>
-         <properties>
-           <gpg.passphrase>{加密后的密码}</gpg.passphrase>
-         </properties>
-       </profile>
-     </profiles>
-   </settings>
-   ```
-   
-   c. 在 IDEA 的 Maven 运行配置中添加命令行参数：
-   `-Dgpg.passphrase=您的密钥密码`
-
-## 验证发布
-
-发布后，可以在以下位置查看您的构件：
-
-1. Sonatype OSSRH: https://oss.sonatype.org/
-2. Maven 中央仓库（同步后）: https://search.maven.org/
-
-## 使用示例
-
-发布成功后，用户可以通过以下方式引入您的库：
-
-### Maven
-
-```xml
-<dependency>
-  <groupId>io.github.hzcssss</groupId>
-  <artifactId>reactive-response-builder</artifactId>
-  <version>1.0.0</version>
-</dependency>
+```bash
+mvn clean deploy -P release -Dgpg.passphrase=您的GPG密钥密码
 ```
 
-### Gradle
+### 4. 发布后的验证
 
-```groovy
-implementation 'io.github.hzcssss:reactive-response-builder:1.0.0'
+发布完成后，您可以在以下位置验证您的构件：
+
+1. **Maven Central Repository**
+   - 访问 https://central.sonatype.com/
+   - 搜索您的 groupId 或 artifactId
+
+2. **Maven 搜索引擎**
+   - 访问 https://search.maven.org/
+   - 搜索您的 groupId 或 artifactId
+
+注意：新发布的构件可能需要几个小时才能在 Maven 中央仓库中可见。
+
+## 常见问题与解决方案
+
+### 1. GPG 相关问题
+
+#### GPG 命令不可用
+
+**错误信息**：
+```
+Cannot run program "gpg": error=2, No such file or directory
+```
+
+**解决方案**：
+- 确保已正确安装 GPG（参见上面的安装说明）
+- 确保 GPG 命令在系统 PATH 中
+- 在 Windows 上，可能需要重启终端或系统
+- 使用 `which gpg`（Unix/Linux/macOS）或 `where gpg`（Windows）确认 GPG 的安装位置
+
+#### 找不到密钥
+
+**错误信息**：
+```
+gpg: no default secret key: No secret key
+```
+
+**解决方案**：
+- 确保已生成 GPG 密钥，并使用 `gpg --list-secret-keys` 验证
+- 检查 pom.xml 中的 `<keyname>` 标签是否与您的密钥 ID 匹配
+- 如果您有多个密钥，请明确指定要使用的密钥 ID
+
+
+### 2. Maven 相关问题
+
+#### 401 Unauthorized 错误
+
+**错误信息**：
+```
+401 Unauthorized
+```
+
+**解决方案**：
+- 检查 settings.xml 中的凭据是否正确
+- 确认您的 Maven Central 账号有权限发布到指定的 groupId
+- 检查您的访问令牌是否过期（通常需要定期更新）
+
+#### 依赖冲突
+
+**错误信息**：
+```
+Dependency convergence error
+```
+
+**解决方案**：
+- 使用 `mvn dependency:tree` 分析依赖树
+- 使用 `<exclusions>` 标签排除冲突的依赖
+- 考虑使用 Maven 的依赖管理功能
+
+#### 构建失败
+
+**错误信息**：
+```
+BUILD FAILURE
+```
+
+**解决方案**：
+- 仔细阅读错误消息，找出具体原因
+- 确保所有测试通过
+- 检查 pom.xml 中的配置是否正确
+- 尝试使用 `-X` 参数获取更详细的调试信息：`mvn clean deploy -P release -X`
+
